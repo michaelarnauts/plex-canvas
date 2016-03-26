@@ -1,0 +1,59 @@
+CANVAS_VIDEO_JSON_URL = 'https://mediazone.vrt.be/api/v1/canvas/assets/%s'
+
+####################################################################################################
+def NormalizeURL(url):
+
+    return url
+
+####################################################################################################
+
+def MetadataObjectForURL(url):
+
+    # Request the URL
+    try:
+        html = HTML.ElementFromURL(url)
+
+        title = html.xpath("//head//meta[@property='og:title']")[0].get('content')
+        description = html.xpath("//head//meta[@property='og:description']")[0].get('content')
+        thumb = html.xpath("//head//meta[@property='og:image']")[0].get('content')
+
+    except:
+        raise Ex.MediaNotAvailable
+
+    return VideoClipObject(
+        title = title,
+        summary = description,
+        thumb = thumb,
+    )
+
+####################################################################################################
+def MediaObjectsForURL(url):
+    return [
+        MediaObject(
+            optimized_for_streaming = True,
+            audio_channels = 2,
+            video_resolution = 'sd',
+            parts = [
+                PartObject(
+                    key = HTTPLiveStreamURL(Callback(PlayVideo, url=url))
+                )
+            ]
+        )
+    ]
+
+####################################################################################################
+@indirect
+def PlayVideo(url, **kwargs):
+
+    # Request the URL
+    html = HTML.ElementFromURL(url)
+
+    filename = html.xpath('.//div[contains(@class, "wieni-vrt-video__vamp")]')[0].get('data-video')
+
+    # Request the json
+    json = JSON.ObjectFromURL(CANVAS_VIDEO_JSON_URL % filename)
+
+    video_url = None
+    for target in json['targetUrls']:
+        if target['type'] == 'PROGRESSIVE_DOWNLOAD':
+            return IndirectResponse(VideoClipObject, key=target['url'])
